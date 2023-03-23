@@ -1,0 +1,43 @@
+# VGG-16
+import keras
+from keras.datasets import cifar10
+from keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from keras.models import Model
+
+# Load the CIFAR-10 dataset
+(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+
+# Normalize the input data
+x_train = x_train.astype('float32') / 255.0
+x_test = x_test.astype('float32') / 255.0
+
+# Convert the labels to one-hot encoded vectors
+y_train = keras.utils.to_categorical(y_train, 10)
+y_test = keras.utils.to_categorical(y_test, 10)
+
+# Define the input shape
+input_shape = (32, 32, 3)
+
+# Define the model architecture
+inputs = Input(shape=input_shape)
+x = Conv2D(96, kernel_size=(11, 11), strides=(4, 4), activation='relu', padding='valid')(inputs)
+x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(x)
+x = Conv2D(256, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
+x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(x)
+x = Conv2D(384, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+x = Conv2D(384, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+x = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+x = Flatten()(x)
+x = Dense(4096, activation='relu')(x)
+x = Dropout(0.5)(x)
+x = Dense(4096, activation='relu')(x)
+x = Dropout(0.5)(x)
+outputs = Dense(10, activation='softmax')(x)
+
+# Compile the model
+model = Model(inputs=inputs, outputs=outputs)
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+# Train the model
+model.fit(x_train, y_train, batch_size=128, epochs=10, validation_data=(x_test, y_test), verbose=1)
