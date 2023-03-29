@@ -1,43 +1,217 @@
-# VGG-16
-import keras
-from keras.datasets import cifar10
-from keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from keras.models import Model
+#------AlexNet-------
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+
+#define model AlexNet
+class AlexNet(nn.Module):
+    def __init__(self, num_classes=10):
+        super(AlexNet, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 96, kernel_size=11, stride=4, padding=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(384, 384, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+        )
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
+        self.classifier = nn.Sequential(
+            nn.Dropout(),
+            nn.Linear(256 * 6 * 6, 4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, num_classes),
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+
+
+# Define the training parameters
+batch_size = 64
+learning_rate = 0.001
+num_epochs = 10
 
 # Load the CIFAR-10 dataset
-(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+train_dataset = datasets.CIFAR10(root='./data', train=True, transform=transforms.ToTensor(), download=True)
+test_dataset = datasets.CIFAR10(root='./data', train=False, transform=transforms.ToTensor())
 
-# Normalize the input data
-x_train = x_train.astype('float32') / 255.0
-x_test = x_test.astype('float32') / 255.0
+# Create data loaders
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-# Convert the labels to one-hot encoded vectors
-y_train = keras.utils.to_categorical(y_train, 10)
-y_test = keras.utils.to_categorical(y_test, 10)
+# Initialize the model and optimizer
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = VGG16(num_classes=10).to(device)
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-# Define the input shape
-input_shape = (32, 32, 3)
-
-# Define the model architecture
-inputs = Input(shape=input_shape)
-x = Conv2D(96, kernel_size=(11, 11), strides=(4, 4), activation='relu', padding='valid')(inputs)
-x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(x)
-x = Conv2D(256, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
-x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(x)
-x = Conv2D(384, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-x = Conv2D(384, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-x = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
-x = Flatten()(x)
-x = Dense(4096, activation='relu')(x)
-x = Dropout(0.5)(x)
-x = Dense(4096, activation='relu')(x)
-x = Dropout(0.5)(x)
-outputs = Dense(10, activation='softmax')(x)
-
-# Compile the model
-model = Model(inputs=inputs, outputs=outputs)
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+# Define the loss function
+criterion = nn.CrossEntropyLoss()
 
 # Train the model
-model.fit(x_train, y_train, batch_size=128, epochs=10, validation_data=(x_test, y_test), verbose=1)
+for epoch in range(num_epochs):
+    for i, (images, labels) in enumerate(train_loader):
+        images = images.to(device)
+        labels = labels.to(device)
+
+        # Forward pass
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+
+        # Backward and optimize
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if (i+1) % 100 == 0:
+            print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}' 
+                   .format(epoch+1, num_epochs, i+1, len(train_loader), loss.item()))
+
+# Test the model
+model.eval()
+with torch.no_grad():
+    correct = 0
+    total = 0
+    for images, labels in test_loader:
+        images = images.to(device)
+        labels = labels.to(device)
+        outputs = model(images)
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+    print('Test Accuracy of the model on the 10000 test images: {} %'.format(100 * correct / total))
+
+#------VGG16-------
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+
+# Define the VGG16 model
+class VGG16(nn.Module):
+    def __init__(self, num_classes=1000):
+        super(VGG16, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(256, 512, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+        self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
+        self.classifier = nn.Sequential(
+            nn.Linear(512 * 7 * 7, 4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+            nn.Linear(4096, num_classes),
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+# Define the training parameters
+batch_size = 64
+learning_rate = 0.001
+num_epochs = 10
+
+# Load the CIFAR-10 dataset
+train_dataset = datasets.CIFAR10(root='./data', train=True, transform=transforms.ToTensor(), download=True)
+test_dataset = datasets.CIFAR10(root='./data', train=False, transform=transforms.ToTensor())
+
+# Create data loaders
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+# Initialize the model and optimizer
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = VGG16(num_classes=10).to(device)
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+# Define the loss function
+criterion = nn.CrossEntropyLoss()
+
+# Train the model
+for epoch in range(num_epochs):
+    for i, (images, labels) in enumerate(train_loader):
+        images = images.to(device)
+        labels = labels.to(device)
+
+        # Forward pass
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+
+        # Backward and optimize
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if (i+1) % 100 == 0:
+            print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}' 
+                   .format(epoch+1, num_epochs, i+1, len(train_loader), loss.item()))
+
+# Test the model
+model.eval()
+with torch.no_grad():
+    correct = 0
+    total = 0
+    for images, labels in test_loader:
+        images = images.to(device)
+        labels = labels.to(device)
+        outputs = model(images)
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+    print('Test Accuracy of the model on the 10000 test images: {} %'.format(100 * correct / total))
