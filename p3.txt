@@ -1,217 +1,129 @@
-#------AlexNet-------
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+----------------------LENET----------------------------------
 
-#define model AlexNet
-class AlexNet(nn.Module):
-    def __init__(self, num_classes=10):
-        super(AlexNet, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 96, kernel_size=11, stride=4, padding=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(384, 384, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-        )
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
-        self.classifier = nn.Sequential(
-            nn.Dropout(),
-            nn.Linear(256 * 6 * 6, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Linear(4096, num_classes),
-        )
+import keras
+from keras.models import Sequential
+from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
 
-    def forward(self, x):
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
-        return x
+# Load the MNIST dataset
+from keras.datasets import mnist
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
 
+# Preprocess the data
+x_train = x_train.reshape(x_train.shape[0], 28, 28, 1)
+x_test = x_test.reshape(x_test.shape[0], 28, 28, 1)
+x_train = x_train.astype('float32')
+x_test = x_test.astype('float32')
+x_train /= 255
+x_test /= 255
 
-# Define the training parameters
-batch_size = 64
-learning_rate = 0.001
-num_epochs = 10
+# Define the LeNet model
+model = Sequential()
+model.add(Conv2D(6, kernel_size=(5, 5), activation='relu', input_shape=(28,28,1)))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Conv2D(16, kernel_size=(5, 5), activation='relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Flatten())
+model.add(Dense(120, activation='relu'))
+model.add(Dense(84, activation='relu'))
+model.add(Dense(10, activation='softmax'))
 
-# Load the CIFAR-10 dataset
-train_dataset = datasets.CIFAR10(root='./data', train=True, transform=transforms.ToTensor(), download=True)
-test_dataset = datasets.CIFAR10(root='./data', train=False, transform=transforms.ToTensor())
-
-# Create data loaders
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-# Initialize the model and optimizer
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = VGG16(num_classes=10).to(device)
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-# Define the loss function
-criterion = nn.CrossEntropyLoss()
+# Compile the model
+model.compile(loss=keras.losses.sparse_categorical_crossentropy,
+              optimizer=keras.optimizers.Adam(),
+              metrics=['accuracy'])
 
 # Train the model
-for epoch in range(num_epochs):
-    for i, (images, labels) in enumerate(train_loader):
-        images = images.to(device)
-        labels = labels.to(device)
+model.fit(x_train, y_train,
+          batch_size=128,
+          epochs=10,
+          verbose=1,
+          validation_data=(x_test, y_test))
 
-        # Forward pass
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+# Evaluate the model
+score = model.evaluate(x_test, y_test, verbose=0)
+print('Test loss:', score[0])
+print('Test accuracy:', score[1])
 
-        # Backward and optimize
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+------------------------------------LSTM-----------------------------
 
-        if (i+1) % 100 == 0:
-            print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}' 
-                   .format(epoch+1, num_epochs, i+1, len(train_loader), loss.item()))
+# LSTM with dropout for sequence classification in the IMDB dataset
+import tensorflow as tf
+from keras.datasets import imdb
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras.layers import Embedding
+from tensorflow.keras.preprocessing import sequence
 
-# Test the model
-model.eval()
-with torch.no_grad():
-    correct = 0
-    total = 0
-    for images, labels in test_loader:
-        images = images.to(device)
-        labels = labels.to(device)
-        outputs = model(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+# fix random seed for reproducibility
+tf.random.set_seed(7)
+# load the dataset but only keep the top n words, zero the rest
+top_words = 5000
+(X_train, y_train), (X_test, y_test) = imdb.load_data(num_words=top_words)
+# truncate and pad input sequences
+max_review_length = 500
+X_train = sequence.pad_sequences(X_train, maxlen=max_review_length)
+X_test = sequence.pad_sequences(X_test, maxlen=max_review_length)
+# create the model
+embedding_vecor_length = 32
+model = Sequential()
+model.add(Embedding(top_words, embedding_vecor_length, input_length=max_review_length))
+model.add(LSTM(100, dropout=0.2, recurrent_dropout=0.2))
+model.add(Dense(1, activation='sigmoid'))
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+print(model.summary())
+model.fit(X_train, y_train, epochs=3, batch_size=64)
+# Final evaluation of the model
+scores = model.evaluate(X_test, y_test, verbose=0)
+print("Accuracy: %.2f%%" % (scores[1]*100))
 
-    print('Test Accuracy of the model on the 10000 test images: {} %'.format(100 * correct / total))
+---------------------------ALEXNET-------------------------------
 
-#------VGG16-------
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-
-# Define the VGG16 model
-class VGG16(nn.Module):
-    def __init__(self, num_classes=1000):
-        super(VGG16, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(256, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-        )
-        self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
-        self.classifier = nn.Sequential(
-            nn.Linear(512 * 7 * 7, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
-            nn.Linear(4096, num_classes),
-        )
-
-    def forward(self, x):
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
-        return x
-# Define the training parameters
-batch_size = 64
-learning_rate = 0.001
-num_epochs = 10
+# AlexNet
+import keras
+from keras.datasets import cifar10
+from keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from keras.models import Model
 
 # Load the CIFAR-10 dataset
-train_dataset = datasets.CIFAR10(root='./data', train=True, transform=transforms.ToTensor(), download=True)
-test_dataset = datasets.CIFAR10(root='./data', train=False, transform=transforms.ToTensor())
+(x_train, y_train), (x_test, y_test) = cifar10.load_data()
 
-# Create data loaders
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+# Normalize the input data
+x_train = x_train.astype('float32') / 255.0
+x_test = x_test.astype('float32') / 255.0
 
-# Initialize the model and optimizer
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = VGG16(num_classes=10).to(device)
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+# Convert the labels to one-hot encoded vectors
+y_train = keras.utils.to_categorical(y_train, 10)
+y_test = keras.utils.to_categorical(y_test, 10)
 
-# Define the loss function
-criterion = nn.CrossEntropyLoss()
+# Define the input shape
+input_shape = (32, 32, 3)
+
+# Define the model architecture
+inputs = Input(shape=input_shape)
+x = Conv2D(96, kernel_size=(11, 11), strides=(4, 4), activation='relu', padding='valid')(inputs)
+x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(x)
+x = Conv2D(256, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
+x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(x)
+x = Conv2D(384, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+x = Conv2D(384, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+x = Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+x = Flatten()(x)
+x = Dense(4096, activation='relu')(x)
+x = Dropout(0.5)(x)
+x = Dense(4096, activation='relu')(x)
+x = Dropout(0.5)(x)
+outputs = Dense(10, activation='softmax')(x)
+
+# Compile the model
+model = Model(inputs=inputs, outputs=outputs)
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
 # Train the model
-for epoch in range(num_epochs):
-    for i, (images, labels) in enumerate(train_loader):
-        images = images.to(device)
-        labels = labels.to(device)
+model.fit(x_train, y_train, batch_size=128, epochs=10, validation_data=(x_test, y_test), verbose=1)
 
-        # Forward pass
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-
-        # Backward and optimize
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        if (i+1) % 100 == 0:
-            print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}' 
-                   .format(epoch+1, num_epochs, i+1, len(train_loader), loss.item()))
-
-# Test the model
-model.eval()
-with torch.no_grad():
-    correct = 0
-    total = 0
-    for images, labels in test_loader:
-        images = images.to(device)
-        labels = labels.to(device)
-        outputs = model(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-
-    print('Test Accuracy of the model on the 10000 test images: {} %'.format(100 * correct / total))
+# Evaluate the model
+test_loss, test_acc = model.evaluate(x_test, y_test)
+print('Test loss:', test_loss)
+print('Test accuracy:', test_acc)
