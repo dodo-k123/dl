@@ -1,0 +1,200 @@
+//data base
+import mysql.connector
+myconn = mysql.connector.connect(host="localhost", user="root", passwd="", database="PythonDB13")
+cur = myconn.cursor();
+
+sql = "select * from emp"
+cur.execute(sql)
+result = cur.fetchall()
+for x in result:
+     print(x)
+myconn.close()
+
+
+
+//linear regression
+import matplotlib.pyplot as plt
+from scipy import stats
+
+x = [5,7,8,7,2,17,2,9,4,11,12,9,6]
+y = [99,86,87,88,111,86,103,87,94,78,77,85,86]
+
+slope, intercept, r, p, std_err = stats.linregress(x, y)
+
+def myfunc(x):
+  return slope * x + intercept
+
+mymodel = list(map(myfunc, x))
+
+plt.scatter(x, y)
+plt.plot(x, mymodel)
+plt.show()
+
+
+
+//find s
+import csv
+a = []
+with open("D:\enjoysport.csv", 'r') as csvfile:
+    for row in csv.reader(csvfile):
+        a.append(row)
+    print(a)
+print("\n The total number of training instances are : ",len(a))
+print(len(a[0]))
+num_attribute = len(a[0])-1
+print("\n The initial hypothesis is : ")
+hypothesis = ['0']*num_attribute
+print(hypothesis)
+
+for i in range(0, len(a)):
+    if a[i][num_attribute] == 'yes':
+        for j in range(0, num_attribute):
+            if hypothesis[j] == '0' or hypothesis[j] == a[i][j]:
+                hypothesis[j] = a[i][j]
+            else:
+                hypothesis[j] = '?'
+    print("\n The hypothesis for the training instance {} is : \n" .format(i+1),hypothesis)
+
+print("\n The Maximally specific hypothesis for the training instance is ")
+print(hypothesis)
+
+
+
+
+//candidate
+import numpy as np    
+import pandas as pd
+data = pd.read_csv('enjoysport.csv')
+concepts = np.array(data.iloc[:,0:-1])
+print(concepts) 
+target = np.array(data.iloc[:,-1])  
+print(target)
+def learn(concepts, target): 
+    specific_h = concepts[0].copy()     
+    print("initialization of specific_h and general_h")     
+    print(specific_h)  
+    general_h = [["?" for i in range(len(specific_h))] for i in range(len(specific_h))]     
+    print(general_h)  
+    for i, h in enumerate(concepts):
+        print("For Loop Starts")
+        if target[i] == "yes":
+            print("If instance is Positive ")
+            for x in range(len(specific_h)): 
+                if h[x]!= specific_h[x]:                    
+                    specific_h[x] ='?'                     
+                    general_h[x][x] ='?'
+if target[i] == "no":            
+            print("If instance is Negative ")
+            for x in range(len(specific_h)): 
+                if h[x]!= specific_h[x]:                    
+                    general_h[x][x] = specific_h[x]                
+                else:                    
+                    general_h[x][x] = '?'        
+
+        print(" steps of Candidate Elimination Algorithm",i+1)        
+        print(specific_h)         
+        print(general_h)
+    indices = [i for i, val in enumerate(general_h) if val == ['?', '?', '?', '?', '?', '?']]    
+    for i in indices:   
+        general_h.remove(['?', '?', '?', '?', '?', '?']) 
+    return specific_h, general_h 
+
+s_final, g_final = learn(concepts, target)
+
+print("Final Specific_h:", s_final, sep="\n")
+print("Final General_h:", g_final, sep="\n")
+
+
+
+//decision tree
+# Sample Decision Tree Classifier
+from sklearn import datasets
+from sklearn import metrics
+from sklearn.tree import DecisionTreeClassifier
+# load the iris datasets
+dataset = datasets.load_iris()
+print(dataset.target)
+# fit a CART model to the data
+model = DecisionTreeClassifier()
+model.fit(dataset.data, dataset.target)
+print(model)
+# make predictions
+expected = dataset.target
+predicted = model.predict(dataset.data)
+print(predicted)
+
+
+
+
+#perceptron update rule
+
+import matplotlib.pyplot as plt
+from sklearn import datasets
+X, y = datasets.make_blobs(n_samples=150,n_features=2,
+                           centers=2,cluster_std=1.05,
+                           random_state=2)
+#Plotting
+fig = plt.figure(figsize=(10,8))
+plt.plot(X[:, 0][y == 0], X[:, 1][y == 0], 'r^')
+plt.plot(X[:, 0][y == 1], X[:, 1][y == 1], 'bs')
+plt.xlabel("feature 1")
+plt.ylabel("feature 2")
+plt.title('Random Classification Data with 2 classes')
+
+
+import numpy as np
+def perceptron(X, y, lr, epochs):
+    m, n = X.shape
+    w = np.zeros((n+1,1))
+    n_miss_list = []
+    for epoch in range(epochs):
+        n_miss = 0
+        for idx, x_i in enumerate(X):
+            x_i = np.insert(x_i, 0, 1).reshape(-1,1)
+            y_hat = step_func(np.dot(x_i.T, w))
+            if (np.squeeze(y_hat) - y[idx])!= 0:
+                w += lr*((y[idx] - y_hat)*x_i)
+                n_miss += 1
+        n_miss_list.append(n_miss)
+    return w, n_miss_list
+
+
+import matplotlib.pyplot as plt
+def plot_decision_boundary(X, theta):
+    x1 = [min(X[:,0]), max(X[:,0])]
+    m = -theta[1]/theta[2]
+    c = -theta[0]/theta[2]
+    x2 = m*x1 + c
+    fig = plt.figure(figsize=(10,8))
+    plt.plot(X[:, 0][y==0], X[:, 1][y==0], "r^")
+    plt.plot(X[:, 0][y==1], X[:, 1][y==1], "bs")
+    plt.xlabel("feature 1")
+    plt.ylabel("feature 2")
+    plt.title('Perceptron Algorithm')
+    plt.plot(x1, x2, 'y-')
+w, miss_l = perceptron(X, y, 0.5, 100)
+print(miss_l)
+plot_decision_boundary(X, w)
+
+
+////knn
+#knn algorithm
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+iris=pd.read_csv("C:/Users/racha/Downloads/archive/iris.csv")
+X=iris.iloc[:,:-1].values
+y=iris.iloc[:,4].values
+X_train,X_test,y_train,y_test=train_test_split(X,y,test_size=0.30)
+print("\n70% train data:")
+print(X_train)
+print(y_train)
+print("\n30% test data:")
+print(X_test)
+print(y_test)
+knn=KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train,y_train)
+print("Response for test dataset:")
+y_pred=knn.predict(X_test)
+print(y_pred)
+
